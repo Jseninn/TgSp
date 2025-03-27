@@ -1,0 +1,65 @@
+import logging
+import nest_asyncio
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
+import requests
+
+# Замените на ваш реальный токен Telegram-бота
+API_TOKEN = '7384682871:AAH3qNLP3wTCQpSJyYwT-P-JCLbpQe_lHn8'
+
+# TMDb API ключ
+TMDB_API_KEY = '806f21fcb327ba548865815ea7aa11f1'
+
+# Настроим логирование
+logging.basicConfig(level=logging.INFO)
+
+# Инициализируем бота и диспетчер
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
+
+# Функция для поиска фильма
+def search_movie(movie_name):
+    url = f'https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={movie_name}&language=ru'
+    response = requests.get(url)
+    return response.json()
+
+# Обработчик команды /start
+@dp.message_handler(commands=["start"])
+async def start(message: types.Message):
+    await message.answer("Привет! Я твой Telegram-бот. Используй команду /movie <название фильма> для поиска.")
+
+# Обработчик поиска фильма
+@dp.message_handler(commands=['movie'])
+async def movie_search(message: types.Message):
+    query = message.text[7:]  # Берем название фильма после команды /movie
+    if not query:
+        await message.answer("Пожалуйста, укажи название фильма после команды /movie.")
+        return
+
+    # Ищем фильм через TMDb API
+    result = search_movie(query)
+    
+    if result['results']:
+        movie = result['results'][0]
+        title = movie['title']
+        overview = movie['overview']
+        poster_path = movie['poster_path']
+        poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+
+        # Отправляем информацию о фильме
+        response_message = f"Название: {title}\n\nОписание: {overview[:400]}...\n"
+        if poster_url:
+            await message.answer_photo(poster_url, caption=response_message)
+        else:
+            await message.answer(response_message)
+    else:
+        await message.answer("Фильм не найден.")
+
+# Для Google Colab нужно применить nest_asyncio
+nest_asyncio.apply()
+
+# Запускаем бота с помощью asyncio.run()
+if __name__ == '__main__':
+    logging.info("Бот запускается...")  # Добавим логирование
+    asyncio.run(executor.start_polling(dp, skip_updates=True))
